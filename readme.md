@@ -110,10 +110,10 @@ SFT supports multiple authentication methods:
 
 ### v0.1 (MVP)
 
-* [x] Basic client/server (`sft`, `sftd`)
-* [x] Default port (5555)
-* [x] `user@host` syntax
-* [x] AES-GCM encryption with pre-shared key
+* [ ] Basic client/server (`sft`, `sftd`)
+* [ ] Default port (5555)
+* [ ] `user@host` syntax
+* [ ] AES-GCM encryption with pre-shared key
 
 ### v0.2
 
