@@ -6,19 +6,19 @@ Unlike plain `scp`, SFT is designed to be **minimal, extensible, and self-hosted
 
 ---
 
-## ✨ Features
+## Features
 
-* 🔐 **End-to-end encryption** using AES-GCM + X25519 key exchange
-* ⚡ **Fast async transfers** with `tokio`
-* 📦 **Daemon-based architecture** (`sftd`) for persistent connections
-* 🧑‍💻 **User\@Host syntax** like SSH (`sft send file.txt user@host`)
-* 🔧 **Config file** (`~/.sft/config`) for host aliases and defaults
-* 🔄 **Resumable transfers** (planned)
-* 📂 **Directory transfers & compression** (planned)
+* **End-to-end encryption** using AES-GCM + X25519 key exchange
+* **Fast async transfers** with `tokio`
+* **Daemon-based architecture** (`sftd`) for persistent connections
+* **User\@Host syntax** like SSH (`sft send file.txt user@host`)
+* **Config file** (`~/.sft/config`) for host aliases and defaults
+* **Resumable transfers** (planned)
+* **Directory transfers & compression** (planned)
 
 ---
 
-## 🚀 Getting Started
+## Getting Started
 
 ### 1. Installation
 
@@ -67,7 +67,7 @@ sft recv pepe@192.168.1.32:/remote/path/file.txt ./local/path/
 
 ---
 
-## ⚙️ Configuration
+## Configuration
 
 SFT supports a configuration file at `~/.sft/config`, inspired by SSH:
 
@@ -90,7 +90,7 @@ sft send ./secret.txt pi
 
 ---
 
-## 🔑 Authentication & Security
+## Authentication & Security
 
 SFT supports multiple authentication methods:
 
@@ -106,7 +106,7 @@ SFT supports multiple authentication methods:
 
 ---
 
-## 🛠️ Roadmap
+## Roadmap
 
 ### v0.1 (MVP)
 
@@ -136,7 +136,7 @@ SFT supports multiple authentication methods:
 
 ---
 
-## 📖 Protocol Design
+## Protocol Design
 
 SFT defines a lightweight protocol on top of TCP:
 
@@ -164,13 +164,13 @@ SFT defines a lightweight protocol on top of TCP:
 
 ---
 
-## 📜 License
+## License
 
 MIT License © 2025
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Some areas you can help with:
 
