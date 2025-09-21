@@ -9,12 +9,12 @@ pub struct Cli {
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum Commands {
-    Send { file: String, dest: String },
+    Send { file: Vec<String>, dest: String },
 }
 
 #[derive(Debug, Clone)]
 pub struct PackageInfos {
-    pub file_path: String,
+    pub file_path: Vec<String>,
     pub user: String,
     pub host: String,
 }

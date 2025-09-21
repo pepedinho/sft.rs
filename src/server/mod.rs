@@ -1,6 +1,15 @@
 use tokio::net::TcpListener;
+pub mod paralelize;
 
-use crate::protocol::{Messages, SFT};
+use crate::{
+    protocol::{Messages, SFT},
+    server::paralelize::Parallelizer,
+};
+
+pub enum Action {
+    Close,
+    None,
+}
 
 pub struct Listener {}
 
@@ -34,11 +43,15 @@ async fn handle_client(stream: &mut tokio::net::TcpStream) -> anyhow::Result<()>
 
         match msg {
             Messages::AuthRequest { user, key } => SFT::check_auth(stream, &user, &key).await?,
-            Messages::FileStart { filename, size } => {
-                println!("start file transfert {filename} of size: {size}");
-                SFT::recvf(stream, &filename).await?;
-            }
             Messages::Ping => SFT::pong(stream).await?,
+            Messages::SessionInit {
+                file_count,
+                filenames,
+            } => {
+                let ports = Parallelizer::generate_port(&filenames)?;
+                SFT::session_resp(stream, ports.clone()).await?;
+                Parallelizer::run_workers(file_count, filenames, ports).await?;
+            }
             Messages::Close => {
                 println!("Client requested close");
                 break;
@@ -51,10 +64,46 @@ async fn handle_client(stream: &mut tokio::net::TcpStream) -> anyhow::Result<()>
                     },
                 )
                 .await?;
-                println!("unknown request");
+                println!("unknown request {:#?}", msg);
                 break;
             }
         }
     }
     Ok(())
+}
+
+async fn handle_transfert(stream: &mut tokio::net::TcpStream) -> anyhow::Result<Action> {
+    loop {
+        let msg = match SFT::recv(stream).await {
+            Ok(m) => m,
+            Err(_e) => {
+                // eprintln!("Client disconnected or error: {e}");
+                return Ok(Action::Close);
+            }
+        };
+
+        match msg {
+            Messages::FileStart { filename, size } => {
+                println!("start file transfert {filename} of size: {size}");
+                SFT::send(stream, &Messages::FReady).await?;
+                SFT::recvf(stream, &filename).await?;
+            }
+            Messages::Close => {
+                println!("Client requested close");
+                break;
+            }
+            _ => {
+                SFT::send(
+                    stream,
+                    &Messages::Error {
+                        msg: "Unknown request".into(),
+                    },
+                )
+                .await?;
+                println!("unknown request {:#?}", msg);
+                break;
+            }
+        }
+    }
+    Ok(Action::Close)
 }

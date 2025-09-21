@@ -2,7 +2,10 @@ use std::time::Duration;
 
 use clap::Parser;
 use sft::{
-    client::cli::{Cli, PackageInfos},
+    client::{
+        channel::Channel,
+        cli::{Cli, PackageInfos},
+    },
     protocol::SFT,
 };
 use tokio::{net::TcpStream, time::timeout};
@@ -12,19 +15,19 @@ async fn main() -> anyhow::Result<()> {
     let pckginfos = PackageInfos::parse_command(Cli::parse().command)?;
     println!("{:#?}", pckginfos);
 
-    let mut stream = timeout(
-        Duration::from_secs(5),
-        TcpStream::connect(pckginfos.host + ":8000"),
-    )
-    .await??;
+    let host = pckginfos.host.clone();
+
+    let mut stream = timeout(Duration::from_secs(5), TcpStream::connect(host + ":8000")).await??;
 
     let r = SFT::auth(&mut stream).await?;
 
     println!("{r}");
     SFT::ping(&mut stream).await?;
 
-    SFT::sendf(&mut stream, &pckginfos.file_path).await?;
+    Channel::channelised_send(&mut stream, pckginfos).await?;
 
-    SFT::close(&mut stream).await?;
+    // SFT::sendf(&mut stream, &pckginfos.file_path[0]).await?;
+
+    // SFT::close(&mut stream).await?;
     Ok(())
 }
