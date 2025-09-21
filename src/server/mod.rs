@@ -30,8 +30,8 @@ async fn handle_client(stream: &mut tokio::net::TcpStream) -> anyhow::Result<()>
     loop {
         let msg = match SFT::recv(stream).await {
             Ok(m) => m,
-            Err(e) => {
-                eprintln!("Client disconnected or error: {e}");
+            Err(_e) => {
+                // eprintln!("Client disconnected or error: {e}");
                 break;
             }
         };

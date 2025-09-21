@@ -2,6 +2,8 @@ use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
+const MAX_MESSAGE_SIZE: u64 = 10 * 1024 * 1024; // 10Mb
+
 /// Messages is a enum that reference all messages type sft protocol can process
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub enum Messages {
@@ -101,6 +103,10 @@ impl SFT {
         let mut len_buf = [0u8; 4];
         stream.read_exact(&mut len_buf).await?;
         let lenght = u32::from_be_bytes(len_buf) as usize;
+
+        if lenght > MAX_MESSAGE_SIZE as usize {
+            anyhow::bail!("message to large: {lenght}");
+        }
 
         let mut buf = vec![0u8; lenght];
         stream.read_exact(&mut buf).await?;
@@ -285,7 +291,7 @@ async fn stream_file_content(
 
 fn format_filename(filename: &str, width: usize) -> String {
     if filename.len() >= width {
-        filename[..width].to_string() 
+        filename[..width].to_string()
     } else {
         format!("{:width$}", filename, width = width)
     }
