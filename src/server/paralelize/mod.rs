@@ -4,7 +4,7 @@ use crate::server::handle_transfert;
 
 pub struct Parallelizer {}
 
-const DEFAULT_ADDRES: &str = "127.0.0.1:";
+const DEFAULT_ADDRES: &str = "0.0.0.0:";
 
 fn get_free_port() -> anyhow::Result<u16> {
     let listener = std::net::TcpListener::bind(DEFAULT_ADDRES.to_owned() + "0")?;
