@@ -6,6 +6,11 @@ use crate::{
     server::paralelize::Parallelizer,
 };
 
+pub enum Action {
+    Close,
+    None,
+}
+
 pub struct Listener {}
 
 impl Listener {
@@ -67,19 +72,20 @@ async fn handle_client(stream: &mut tokio::net::TcpStream) -> anyhow::Result<()>
     Ok(())
 }
 
-async fn handle_transfert(stream: &mut tokio::net::TcpStream) -> anyhow::Result<()> {
+async fn handle_transfert(stream: &mut tokio::net::TcpStream) -> anyhow::Result<Action> {
     loop {
         let msg = match SFT::recv(stream).await {
             Ok(m) => m,
             Err(_e) => {
                 // eprintln!("Client disconnected or error: {e}");
-                break;
+                return Ok(Action::Close);
             }
         };
 
         match msg {
             Messages::FileStart { filename, size } => {
                 println!("start file transfert {filename} of size: {size}");
+                SFT::send(stream, &Messages::FReady).await?;
                 SFT::recvf(stream, &filename).await?;
             }
             Messages::Close => {
@@ -99,5 +105,5 @@ async fn handle_transfert(stream: &mut tokio::net::TcpStream) -> anyhow::Result<
             }
         }
     }
-    Ok(())
+    Ok(Action::Close)
 }

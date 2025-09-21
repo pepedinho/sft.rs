@@ -1,10 +1,13 @@
-use tokio::net::TcpListener;
+use std::sync::Arc;
 
-use crate::server::handle_transfert;
+use tokio::{net::TcpListener, sync::Semaphore};
+
+use crate::server::{Action, handle_transfert};
 
 pub struct Parallelizer {}
 
 const DEFAULT_ADDRES: &str = "0.0.0.0:";
+const MAX_PARALLEL: usize = 5;
 
 fn get_free_port() -> anyhow::Result<u16> {
     let listener = std::net::TcpListener::bind(DEFAULT_ADDRES.to_owned() + "0")?;
@@ -33,8 +36,10 @@ impl Parallelizer {
         }
 
         let mut handles = Vec::new();
+        let sem = Arc::new(Semaphore::new(MAX_PARALLEL));
 
         for (i, file) in filenames.iter().enumerate() {
+            let sem = sem.clone();
             let addr = DEFAULT_ADDRES.to_owned() + &ports[i].to_string();
 
             let f = file.clone();
@@ -44,21 +49,21 @@ impl Parallelizer {
                     .expect("failed to bind listener");
                 println!("listening for file {f} on {addr}");
 
-                loop {
-                    let (mut socket, addr) = match listener.accept().await {
-                        Ok(v) => v,
-                        Err(e) => {
-                            eprintln!("Accept error on {addr}: {:?}", e);
-                            continue;
-                        }
-                    };
+                let (mut socket, addr) = match listener.accept().await {
+                    Ok(v) => v,
+                    Err(e) => {
+                        eprintln!("Accept error on {addr}: {:?}", e);
+                        return;
+                    }
+                };
 
-                    tokio::spawn(async move {
-                        println!("New file transfert");
-                        if let Err(e) = handle_transfert(&mut socket).await {
-                            eprintln!("Error with client {:?}: {:?}", addr, e);
-                        }
-                    });
+                let _permit = sem.acquire().await.unwrap();
+                println!("New file transfert");
+
+                match handle_transfert(&mut socket).await {
+                    Err(e) => eprintln!("Error with client {:?}: {:?}", addr, e),
+                    Ok(Action::Close) => return,
+                    _ => {}
                 }
             });
 

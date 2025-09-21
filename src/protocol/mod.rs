@@ -37,6 +37,7 @@ pub enum Messages {
     Error {
         msg: String,
     },
+    FReady,
     Ack, // Acknowledgment of receipt
     Close,
     Ping,
@@ -147,6 +148,10 @@ impl SFT {
             },
         )
         .await?;
+        match SFT::recv(stream).await? {
+            Messages::FReady => {}
+            _ => anyhow::bail!("failed to communic with server"),
+        };
 
         stream_file_content(file, stream, size, &filename, mp).await?;
         SFT::send(stream, &Messages::FileEnd).await?;
@@ -216,7 +221,6 @@ impl SFT {
     }
 
     pub async fn close(stream: &mut tokio::net::TcpStream) -> anyhow::Result<()> {
-        println!("debug: send close order");
         SFT::send(stream, &Messages::Close).await?;
         Ok(())
     }

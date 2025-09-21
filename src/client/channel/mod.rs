@@ -40,6 +40,10 @@ impl Channel {
                     println!("Error: failed to connect on {addr}: {e}");
                     return;
                 };
+                if let Err(e) = SFT::close(&mut s).await {
+                    println!("Error: failed to connect on {addr}: {e}");
+                    return;
+                };
             });
             handles.push(handle);
         }
