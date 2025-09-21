@@ -285,8 +285,8 @@ async fn stream_file_content(
 
 fn format_filename(filename: &str, width: usize) -> String {
     if filename.len() >= width {
-        filename[..width].to_string() // tronque si trop long
+        filename[..width].to_string() 
     } else {
-        format!("{:width$}", filename, width = width) // pad avec espaces
+        format!("{:width$}", filename, width = width)
     }
 }
