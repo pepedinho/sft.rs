@@ -266,7 +266,7 @@ async fn stream_file_content(
     );
     pb.set_message(format_filename(filename, 15));
 
-    let mut buf = vec![0u8; 64 * 2048];
+    let mut buf = vec![0u8; 128 * 2048];
     let mut total_send = 0u64;
 
     loop {
