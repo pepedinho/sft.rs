@@ -74,7 +74,6 @@ impl Parallelizer {
         for h in handles {
             h.await?;
         }
-
-        todo!()
+        Ok(())
     }
 }
