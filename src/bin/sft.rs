@@ -21,5 +21,10 @@ async fn main() -> anyhow::Result<()> {
     let r = SFT::auth(&mut stream).await?;
 
     println!("{r}");
+    SFT::ping(&mut stream).await?;
+
+    SFT::sendf(&mut stream, &pckginfos.file_path).await?;
+
+    SFT::close(&mut stream).await?;
     Ok(())
 }

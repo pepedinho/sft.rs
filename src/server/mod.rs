@@ -23,12 +23,37 @@ impl Listener {
 }
 
 async fn handle_client(stream: &mut tokio::net::TcpStream) -> anyhow::Result<()> {
-    let msg = SFT::recv(stream).await?;
+    loop {
+        let msg = match SFT::recv(stream).await {
+            Ok(m) => m,
+            Err(e) => {
+                eprintln!("Client disconnected or error: {e}");
+                break;
+            }
+        };
 
-    match msg {
-        Messages::AuthRequest { user, key } => SFT::check_auth(stream, &user, &key).await?,
-        _ => {
-            println!("unknown request")
+        match msg {
+            Messages::AuthRequest { user, key } => SFT::check_auth(stream, &user, &key).await?,
+            Messages::FileStart { filename, size } => {
+                println!("start file transfert {filename} of size: {size}");
+                SFT::recvf(stream, &filename).await?;
+            }
+            Messages::Ping => SFT::pong(stream).await?,
+            Messages::Close => {
+                println!("Client requested close");
+                break;
+            }
+            _ => {
+                SFT::send(
+                    stream,
+                    &Messages::Error {
+                        msg: "Unknown request".into(),
+                    },
+                )
+                .await?;
+                println!("unknown request");
+                break;
+            }
         }
     }
     Ok(())
