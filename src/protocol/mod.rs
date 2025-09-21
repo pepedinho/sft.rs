@@ -1,16 +1,40 @@
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 /// Messages is a enum that reference all messages type sft protocol can process
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
 pub enum Messages {
-    AuthRequest { user: String, key: String },
-    AuthResponse { ok: bool, msg: String },
-    FileStart { filename: String, size: u64 },
-    FileChunk { data: Vec<u8> },
+    AuthRequest {
+        user: String,
+        key: String,
+    },
+    AuthResponse {
+        ok: bool,
+        msg: String,
+    },
+    SessionInit {
+        file_count: usize,
+        filenames: Vec<String>,
+    },
+    SessionReady {
+        ports: Vec<u16>,
+    },
+    FileStart {
+        filename: String,
+        size: u64,
+    },
+    FileChunk {
+        data: Vec<u8>,
+    },
     FileEnd,
-    Progress { byte_received: u64, total_byte: u64 },
-    Error { msg: String },
+    Progress {
+        byte_received: u64,
+        total_byte: u64,
+    },
+    Error {
+        msg: String,
+    },
     Ack, // Acknowledgment of receipt
     Close,
     Ping,
@@ -94,7 +118,11 @@ impl SFT {
         Ok(())
     }
 
-    pub async fn sendf(stream: &mut tokio::net::TcpStream, path: &str) -> anyhow::Result<()> {
+    pub async fn sendf(
+        stream: &mut tokio::net::TcpStream,
+        path: &str,
+        mp: &MultiProgress,
+    ) -> anyhow::Result<()> {
         let file = tokio::fs::File::open(path).await?;
         let metadata = file.metadata().await?;
         let size = metadata.len();
@@ -105,26 +133,25 @@ impl SFT {
             .to_string_lossy()
             .to_string();
 
-        println!("debug: send file start");
+        SFT::send(
+            stream,
+            &Messages::FileStart {
+                filename: filename.clone(),
+                size,
+            },
+        )
+        .await?;
 
-        SFT::send(stream, &Messages::FileStart { filename, size }).await?;
-
-        println!("debug: start file streaming");
-
-        stream_file_content(file, stream, size).await?;
+        stream_file_content(file, stream, size, &filename, mp).await?;
         SFT::send(stream, &Messages::FileEnd).await?;
         loop {
             let resp = SFT::recv(stream).await?;
             match resp {
                 Messages::Ack => {
-                    println!("File upload with success !");
+                    // println!("File upload with success !");
                     break;
                 }
                 Messages::Error { msg } => anyhow::bail!("Internal server error: {msg}"),
-                Messages::Progress {
-                    byte_received,
-                    total_byte,
-                } => println!("progression : {byte_received} => {total_byte}"),
                 _ => {
                     println!("debug: server response : {:#?}", resp);
                     anyhow::bail!("Unexpected Response");
@@ -187,15 +214,51 @@ impl SFT {
         SFT::send(stream, &Messages::Close).await?;
         Ok(())
     }
+    pub async fn open_session(
+        stream: &mut tokio::net::TcpStream,
+        files: &Vec<String>,
+    ) -> anyhow::Result<Vec<u16>> {
+        SFT::send(
+            stream,
+            &Messages::SessionInit {
+                file_count: files.len(),
+                filenames: files.clone(),
+            },
+        )
+        .await?;
+        match SFT::recv(stream).await? {
+            Messages::SessionReady { ports } => Ok(ports),
+            _ => Err(anyhow::anyhow!("failed to init transfert session")),
+        }
+    }
+
+    pub async fn session_resp(
+        stream: &mut tokio::net::TcpStream,
+        ports: Vec<u16>,
+    ) -> anyhow::Result<()> {
+        SFT::send(stream, &Messages::SessionReady { ports: ports }).await?;
+        Ok(())
+    }
 }
 
 async fn stream_file_content(
     mut file: tokio::fs::File,
     stream: &mut tokio::net::TcpStream,
     size: u64,
+    filename: &str,
+    mp: &MultiProgress,
 ) -> anyhow::Result<()> {
+    let pb = mp.add(ProgressBar::new(size));
+    pb.set_style(
+        ProgressStyle::with_template("{msg} [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})")
+            .unwrap()
+            .progress_chars("=>-"),
+    );
+    pb.set_message(format_filename(filename, 15));
+
     let mut buf = vec![0u8; 64 * 2048];
     let mut total_send = 0u64;
+
     loop {
         let n = file.read(&mut buf).await?;
         if n == 0 {
@@ -212,15 +275,18 @@ async fn stream_file_content(
         )
         .await?;
 
-        println!("Progress: {total_send} => {size}");
+        pb.set_position(total_send);
 
-        // if let Messages::Progress {
-        //     byte_received,
-        //     total_byte,
-        // } = SFT::recv(stream).await?
-        // {
-        //     println!("Progress: {}/{}", byte_received, total_byte);
-        // }
+        // println!("Progress ({filename}): {total_send} => {size}");
     }
+    pb.finish_with_message(format!("{} [done]", format_filename(filename, 15)));
     Ok(())
+}
+
+fn format_filename(filename: &str, width: usize) -> String {
+    if filename.len() >= width {
+        filename[..width].to_string() // tronque si trop long
+    } else {
+        format!("{:width$}", filename, width = width) // pad avec espaces
+    }
 }
