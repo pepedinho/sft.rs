@@ -1,7 +1,10 @@
+use ring::aead::LessSafeKey;
 use tokio::net::TcpListener;
+use x25519_dalek::SharedSecret;
 pub mod paralelize;
 
 use crate::{
+    encryption::Encryption,
     protocol::{Messages, SFT},
     server::paralelize::Parallelizer,
 };
@@ -32,6 +35,7 @@ impl Listener {
 }
 
 async fn handle_client(stream: &mut tokio::net::TcpStream) -> anyhow::Result<()> {
+    let mut session_key: Option<LessSafeKey> = None;
     loop {
         let msg = match SFT::recv(stream).await {
             Ok(m) => m,
@@ -42,15 +46,22 @@ async fn handle_client(stream: &mut tokio::net::TcpStream) -> anyhow::Result<()>
         };
 
         match msg {
-            Messages::AuthRequest { user, key } => SFT::check_auth(stream, &user, &key).await?,
+            Messages::AuthRequest { user, key } => {
+                if let Some(shared) = SFT::check_auth(stream, &user, key).await? {
+                    let unbound = Encryption::derive_key(&shared);
+                    session_key = Some(LessSafeKey::new(unbound));
+                }
+            }
             Messages::Ping => SFT::pong(stream).await?,
             Messages::SessionInit {
                 file_count,
                 filenames,
-            } => {
+            } if session_key.is_some() => {
                 let ports = Parallelizer::generate_port(&filenames)?;
                 SFT::session_resp(stream, ports.clone()).await?;
-                Parallelizer::run_workers(file_count, filenames, ports).await?;
+                if let Some(shared) = &session_key {
+                    Parallelizer::run_workers(file_count, filenames, ports, shared).await?;
+                }
             }
             Messages::Close => {
                 println!("Client requested close");

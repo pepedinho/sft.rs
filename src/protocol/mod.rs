@@ -1,6 +1,7 @@
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use x25519_dalek::{EphemeralSecret, PublicKey, SharedSecret};
 
 const MAX_MESSAGE_SIZE: u64 = 10 * 1024 * 1024; // 10Mb
 
@@ -9,10 +10,11 @@ const MAX_MESSAGE_SIZE: u64 = 10 * 1024 * 1024; // 10Mb
 pub enum Messages {
     AuthRequest {
         user: String,
-        key: String,
+        key: Vec<u8>,
     },
     AuthResponse {
         ok: bool,
+        key: Vec<u8>,
         msg: String,
     },
     SessionInit {
@@ -51,20 +53,36 @@ impl SFT {
     // Auth methods
     // -----------------------
 
-    pub async fn auth(stream: &mut tokio::net::TcpStream) -> anyhow::Result<String> {
+    pub async fn auth(stream: &mut tokio::net::TcpStream) -> anyhow::Result<SharedSecret> {
+        let secret = EphemeralSecret::random();
+        let public = PublicKey::from(&secret);
+
         SFT::send(
             stream,
             &Messages::AuthRequest {
                 user: "pepe".to_string(),
-                key: "oui".to_string(),
+                key: public.as_bytes().to_vec(),
             },
         )
         .await?;
         let msg = SFT::recv(stream).await?;
         println!("debug: recv msg:\n {:#?}", msg);
         match msg {
-            Messages::AuthResponse { ok: false, msg: m } => Err(anyhow::anyhow!(m)),
-            Messages::AuthResponse { ok: true, msg: m } => Ok(m),
+            Messages::AuthResponse {
+                ok: false,
+                msg: m,
+                key: _,
+            } => Err(anyhow::anyhow!(m)),
+            Messages::AuthResponse {
+                ok: true,
+                msg: _m,
+                key,
+            } => {
+                let k: [u8; 32] = key[..]
+                    .try_into()
+                    .expect("slice should have exactly 32 bytes");
+                Ok(secret.diffie_hellman(&PublicKey::from(k)))
+            }
             _ => Err(anyhow::anyhow!("Internal server error")),
         }
     }
@@ -72,28 +90,38 @@ impl SFT {
     pub async fn check_auth(
         stream: &mut tokio::net::TcpStream,
         user: &str,
-        key: &str,
-    ) -> anyhow::Result<()> {
+        key: Vec<u8>,
+    ) -> anyhow::Result<Option<SharedSecret>> {
         if user.is_empty() || key.is_empty() {
             SFT::send(
                 stream,
                 &Messages::AuthResponse {
                     ok: false,
                     msg: "auth failed invalid credential".to_string(),
+                    key: vec![],
                 },
             )
             .await?;
-            return Ok(());
+            return Ok(None);
         }
+        let secret = EphemeralSecret::random();
+        let public = PublicKey::from(&secret);
+        let tmp: [u8; 32] = key[..32]
+            .try_into()
+            .expect("slice should have exactly 32 bytes");
+        let client_pub = PublicKey::from(tmp);
+        let shared = secret.diffie_hellman(&client_pub);
+
         SFT::send(
             stream,
             &Messages::AuthResponse {
                 ok: true,
                 msg: "connexion establish !".to_string(),
+                key: public.as_bytes().to_vec(),
             },
         )
         .await?;
-        Ok(())
+        Ok(Some(shared))
     }
 
     // -----------------------

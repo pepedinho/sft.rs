@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
+use ring::aead::LessSafeKey;
 use tokio::{net::TcpListener, sync::Semaphore};
+use x25519_dalek::SharedSecret;
 
 use crate::server::{Action, handle_transfert};
 
@@ -30,6 +32,7 @@ impl Parallelizer {
         file_count: usize,
         filenames: Vec<String>,
         ports: Vec<u16>,
+        shared_key: &LessSafeKey,
     ) -> anyhow::Result<()> {
         if file_count != filenames.len() {
             anyhow::bail!("invalid request");

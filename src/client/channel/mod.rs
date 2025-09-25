@@ -1,5 +1,7 @@
 use indicatif::MultiProgress;
+use ring::aead::LessSafeKey;
 use tokio::net::TcpStream;
+use x25519_dalek::SharedSecret;
 
 use crate::{client::cli::PackageInfos, protocol::SFT};
 
@@ -9,6 +11,7 @@ impl Channel {
     pub async fn channelised_send(
         stream: &mut tokio::net::TcpStream,
         pckinfo: PackageInfos,
+        shared_key: &LessSafeKey,
     ) -> anyhow::Result<()> {
         SFT::ping(stream).await?;
 
