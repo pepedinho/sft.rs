@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use ring::aead::LessSafeKey;
 use tokio::{net::TcpListener, sync::Semaphore};
-use x25519_dalek::SharedSecret;
 
 use crate::server::{Action, handle_transfert};
 

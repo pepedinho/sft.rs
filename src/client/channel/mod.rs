@@ -1,7 +1,6 @@
 use indicatif::MultiProgress;
 use ring::aead::LessSafeKey;
 use tokio::net::TcpStream;
-use x25519_dalek::SharedSecret;
 
 use crate::{client::cli::PackageInfos, protocol::SFT};
 

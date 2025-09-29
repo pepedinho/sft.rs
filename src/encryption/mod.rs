@@ -7,7 +7,7 @@ use x25519_dalek::SharedSecret;
 pub struct Encryption {}
 
 impl Encryption {
-    pub fn derive_key(shared: &SharedSecret) -> aead::UnboundKey {
+    pub fn derive_key(shared: &SharedSecret) -> aead::LessSafeKey {
         let salt = Salt::new(HKDF_SHA256, b"SFT file transfer v1");
         let prk = salt.extract(shared.as_bytes());
         let okm = prk
@@ -16,7 +16,8 @@ impl Encryption {
 
         let mut key_byte = [0u8; 32];
         okm.fill(&mut key_byte).expect("HKDF fill failed");
-        aead::UnboundKey::new(&aead::AES_256_GCM, &key_byte).expect("invalid AEAD key")
+        let unbound = aead::UnboundKey::new(&aead::AES_256_GCM, &key_byte).expect("invalid AEAD key");
+        aead::LessSafeKey::new(unbound)
     }
 
     pub fn encrypt(key: &LessSafeKey, plaintext: &mut Vec<u8>, nonce_counter: u64) -> Vec<u8> {

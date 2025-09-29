@@ -1,6 +1,5 @@
 use ring::aead::LessSafeKey;
 use tokio::net::TcpListener;
-use x25519_dalek::SharedSecret;
 pub mod paralelize;
 
 use crate::{
@@ -48,8 +47,7 @@ async fn handle_client(stream: &mut tokio::net::TcpStream) -> anyhow::Result<()>
         match msg {
             Messages::AuthRequest { user, key } => {
                 if let Some(shared) = SFT::check_auth(stream, &user, key).await? {
-                    let unbound = Encryption::derive_key(&shared);
-                    session_key = Some(LessSafeKey::new(unbound));
+                    session_key = Some(Encryption::derive_key(&shared));
                 }
             }
             Messages::Ping => SFT::pong(stream).await?,
@@ -64,6 +62,7 @@ async fn handle_client(stream: &mut tokio::net::TcpStream) -> anyhow::Result<()>
                 }
             }
             Messages::Close => {
+                session_key = None;
                 println!("Client requested close");
                 break;
             }
@@ -92,6 +91,8 @@ async fn handle_transfert(stream: &mut tokio::net::TcpStream) -> anyhow::Result<
                 return Ok(Action::Close);
             }
         };
+
+        
 
         match msg {
             Messages::FileStart { filename, size } => {
